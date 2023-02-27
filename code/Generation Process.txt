@@ -1,0 +1,12 @@
+1. Sample frames from each video: sh frame_extraction.sh ./data 8
+2. Extract human patches: human_patch_extraction.ipynb
+3. Apply OpenPose to extract the skeleton keypoints in normalised form
+.\bin\OpenPoseDemo.exe --image_dir F:\Documents\Development\GitHub\advanced-computer-vision-y4\code\output\segmented\Train\Game --write_json F:\Documents\Development\GitHub\advanced-computer-vision-y4\code\output\segmented\Train\Game\openpose_out_normalised --keypoint_scale 3
+4. Classify the poses: pose_estimation_approach2_mass.ipynb
+
+Difficulties:
+* Head only is not good, maybe need to be much stricter?
+* Can I crop them to head only?
+* Difficult when the pose is nearly completely straight
+--> maybe work out some angles and figure out the expected ratio instead?
+* Could try relaxing head score to 0.4 so we can have those that are facing away better?
