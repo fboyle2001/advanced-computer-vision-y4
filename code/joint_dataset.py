@@ -20,15 +20,16 @@ class JointDomainImageDataset(torch.utils.data.Dataset):
 
         if train:
             self.transform = transforms.Compose([
-                transforms.Resize(144, transforms.InterpolationMode.BICUBIC),
-                transforms.RandomCrop(128),
+                transforms.Resize(286, transforms.InterpolationMode.BICUBIC),
+                transforms.RandomCrop(256),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
         else:
             self.transform = transforms.Compose([
-                transforms.Resize(128),
+                transforms.Resize(286, transforms.InterpolationMode.BICUBIC),
+                transforms.RandomCrop(256),
                 transforms.ToTensor(),
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
