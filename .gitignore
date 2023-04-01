@@ -9,3 +9,9 @@
 /code/inference_test/*
 /code/examples/*
 /code/selected_data/*
+/code/frame_split_testing/*
+
+logs
+__pycache__
+*.pyc
+Feedback Session Notes.txt

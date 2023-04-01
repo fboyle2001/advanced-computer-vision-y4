@@ -28,6 +28,11 @@ def createGeneratorCINRLayer(in_ch, out_ch, stride, kernel_size, reflect_pad):
         layers.append(
             nn.ConvTranspose2d(in_ch, out_ch, kernel_size=kernel_size, stride=int(1 / stride), padding=padding, output_padding=padding, bias=True)
         )
+        # layers += [
+        #     nn.Upsample(scale_factor=2, mode="bilinear"),
+        #     nn.ReflectionPad2d(1),
+        #     nn.Conv2d(in_ch, out_ch, kernel_size=kernel_size, stride=1, padding=0)
+        # ]
     else:
         layers.append(
             nn.Conv2d(in_ch, out_ch, kernel_size=kernel_size, stride=stride, padding=padding, bias=True)
@@ -67,22 +72,20 @@ class GeneratorResidualBlock(nn.Module):
 # For the 128x128 case:
 # c7s1-64, d128, d256, R256 x 6, u128, u64, c7s1-3
 class Generator(nn.Module):
-    def __init__(self):
+    def __init__(self, resnet_blocks):
         super().__init__()
         
         layers = [
             createGeneratorCINRLayer(in_ch=3, out_ch=64, stride=1, kernel_size=7, reflect_pad=True),
             createGeneratorCINRLayer(in_ch=64, out_ch=128, stride=2, kernel_size=3, reflect_pad=False),
-            createGeneratorCINRLayer(in_ch=128, out_ch=256, stride=2, kernel_size=3, reflect_pad=False),
-            
-            # same dim all the way through
-            GeneratorResidualBlock(feature_size=256),
-            GeneratorResidualBlock(feature_size=256),
-            GeneratorResidualBlock(feature_size=256),
-            GeneratorResidualBlock(feature_size=256),
-            GeneratorResidualBlock(feature_size=256),
-            GeneratorResidualBlock(feature_size=256),
-            
+            createGeneratorCINRLayer(in_ch=128, out_ch=256, stride=2, kernel_size=3, reflect_pad=False)
+        ]
+        
+        # same dim all the way through
+        for _ in range(resnet_blocks):
+            layers.append(GeneratorResidualBlock(feature_size=256))
+
+        layers += [ 
             createGeneratorCINRLayer(in_ch=256, out_ch=128, kernel_size=3, stride=0.5, reflect_pad=False),
             createGeneratorCINRLayer(in_ch=128, out_ch=64, kernel_size=3, stride=0.5, reflect_pad=False),
 
@@ -177,11 +180,11 @@ class HistoryBuffer:
         return torch.stack(new_batch)
 
 class CycleGAN:
-    def __init__(self, device, init=True, start_epoch=0, save_folder=None):
-        self.device = device
+    def __init__(self, device, blocks, init=True, start_epoch=0, save_folder=None):
+        self.block_count = blocks
 
-        self.G = Generator().to(device)
-        self.F = Generator().to(device)
+        self.G = Generator(blocks).to(device)
+        self.F = Generator(blocks).to(device)
         
         self.D_X = PatchDiscriminator().to(device)
         self.D_Y = PatchDiscriminator().to(device)
@@ -216,6 +219,7 @@ class CycleGAN:
         self.D_Y_opt_scheduler = torch.optim.lr_scheduler.LambdaLR(self.D_Y_opt, lr_lambda=lambda_rule)
 
         self.save_folder = save_folder if save_folder is not None else f"./runs/{time.time()}"
+        os.makedirs(self.save_folder, exist_ok=True)
         self.start_epoch = start_epoch
 
     def _initialise_weights(self):
@@ -253,7 +257,7 @@ class CycleGAN:
         model.eval()
 
         with torch.no_grad():
-            processed_tensors = model(tensors.to(self.device).detach())
+            processed_tensors = model(tensors.to(device).detach())
         
         model.train()
         return processed_tensors.detach().cpu()
@@ -280,11 +284,11 @@ class CycleGAN:
         torch.save(self.F.state_dict(), f"{folder}/F.pth")
     
     @staticmethod
-    def load(save_folder, epoch_dir, device):
+    def load(save_folder, epoch_dir, device, blocks):
         checkpoint_path = f"{save_folder}/{epoch_dir}/checkpoint.tar"
         checkpoint = torch.load(checkpoint_path)
 
-        cyclegan = CycleGAN(device, init=False, start_epoch=checkpoint["epoch"], save_folder=save_folder)
+        cyclegan = CycleGAN(device, blocks, init=False, start_epoch=checkpoint["epoch"], save_folder=save_folder)
 
         cyclegan.G.load_state_dict(checkpoint["G"])
         cyclegan.D_X.load_state_dict(checkpoint["D_X"])
@@ -292,9 +296,16 @@ class CycleGAN:
         cyclegan.D_Y.load_state_dict(checkpoint["D_Y"])
 
         cyclegan.G_opt.load_state_dict(checkpoint["G_opt"])
+        cyclegan.G_opt_scheduler.last_epoch = cyclegan.start_epoch
+
         cyclegan.D_X_opt.load_state_dict(checkpoint["D_X_opt"])
+        cyclegan.D_X_opt_scheduler.last_epoch = cyclegan.start_epoch
+
         cyclegan.F_opt.load_state_dict(checkpoint["F_opt"])
+        cyclegan.F_opt_scheduler.last_epoch = cyclegan.start_epoch
+
         cyclegan.D_Y_opt.load_state_dict(checkpoint["D_Y_opt"])
+        cyclegan.D_Y_opt_scheduler.last_epoch = cyclegan.start_epoch
 
         cyclegan.fake_X_buffer.buffer = [x.to(device) for x in checkpoint["fake_X_buffer"]]
         cyclegan.fake_Y_buffer.buffer = [y.to(device) for y in checkpoint["fake_Y_buffer"]]
@@ -303,5 +314,7 @@ class CycleGAN:
         cyclegan.D_X.train()
         cyclegan.F.train()
         cyclegan.D_Y.train()
+
+        print(f"Models and buffers loaded from {checkpoint_path}")
 
         return cyclegan
