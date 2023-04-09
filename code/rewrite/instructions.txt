@@ -1,0 +1,2 @@
+1. Place the data from Blackboard into a folder called './original_data'
+2. Run the notebook 'X.ipynb', specific instructions (such as specifying OpenPose path) are found within the notebook

@@ -1,12 +1,11 @@
-from typing import List
-
 import time
 import os
+import shutil
 
 import torch
 import torch.nn as nn
 
-from utils import HistoryBuffer
+from history_buffer import HistoryBuffer
 from generator_model import Generator
 from discriminator_model import PatchDiscriminator
 
@@ -19,7 +18,6 @@ class CycleGAN:
             pool_size,
             opt_scheduler_type,
             max_epochs,
-            save_frequency=5,
             start_epoch=0, 
             save_folder=None
         ):
@@ -88,3 +86,39 @@ class CycleGAN:
         self._step_learning_rate("F_opt", self.F_opt_scheduler, self.F_opt)
         self._step_learning_rate("D_X_opt", self.D_X_opt_scheduler, self.D_X_opt)
         self._step_learning_rate("D_Y_opt", self.D_Y_opt_scheduler, self.D_Y_opt)
+
+    def apply(self, tensors, x_to_y):
+        model = self.G if x_to_y else self.F
+        model.eval()
+
+        with torch.no_grad():
+            processed_tensors = model(tensors.to(self.device).detach())
+        
+        model.train()
+        return processed_tensors.detach().cpu()
+
+    def save(self, epoch, full_save, folder=None):
+        folder_t = f"{self.save_folder}/{epoch if folder is None else folder}"
+
+        if folder == "latest" and os.path.exists(folder_t) and os.path.isdir(folder_t):
+            shutil.rmtree(folder_t)
+
+        os.makedirs(folder_t, exist_ok=True)
+
+        if full_save:
+            torch.save({
+                "epoch": epoch,
+                "G": self.G.state_dict(),
+                "F": self.F.state_dict(),
+                "D_X": self.D_X.state_dict(),
+                "D_Y": self.D_Y.state_dict(),
+                "G_opt": self.G_opt.state_dict(),
+                "F_opt": self.F_opt.state_dict(),
+                "D_X_opt": self.D_X_opt.state_dict(),
+                "D_Y_opt": self.D_Y_opt.state_dict(),
+                "fake_X_buffer": self.fake_X_buffer.buffer,
+                "fake_Y_buffer": self.fake_Y_buffer.buffer
+            }, f"{folder_t}/checkpoint.tar")
+
+        torch.save(self.G.state_dict(), f"{folder_t}/G.pth")
+        torch.save(self.F.state_dict(), f"{folder_t}/F.pth")

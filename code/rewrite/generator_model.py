@@ -35,7 +35,7 @@ def createGeneratorCINRLayer(in_ch, out_ch, stride, kernel_size, reflect_pad, up
                 nn.Conv2d(in_ch, in_ch * 4, kernel_size=1, stride=1, padding=0),
                 nn.LeakyReLU(0.2, True),
                 nn.PixelShuffle(2),
-                nn.Conv2d(in_ch, out_ch, kernel_size=kernel_size, stride=1, padding=0)
+                nn.Conv2d(in_ch, out_ch, kernel_size=kernel_size, stride=1, padding=1)
             ]
         else:
             assert False, "Invalid up_type"

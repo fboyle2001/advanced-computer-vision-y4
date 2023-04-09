@@ -1,0 +1,4 @@
+*.jpg
+openpose/
+*.mp4
+*.pyc

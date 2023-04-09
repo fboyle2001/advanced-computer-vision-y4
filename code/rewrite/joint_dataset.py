@@ -8,7 +8,7 @@ import os
 import random
 
 class JointDomainImageDataset(torch.utils.data.Dataset):
-    def __init__(self, domain_X_folder, domain_Y_folder, train):
+    def __init__(self, domain_X_folder, domain_Y_folder, train, img_size, load_size):
         self.X_imgs = []
         self.Y_imgs = []
 
@@ -20,9 +20,9 @@ class JointDomainImageDataset(torch.utils.data.Dataset):
 
         if train:
             self.transform = transforms.Compose([
-                # transforms.Resize(144, transforms.InterpolationMode.NEAREST),
+                # transforms.Resize(load_size, transforms.InterpolationMode.NEAREST),
                 # transforms.RandomCrop(128),
-                transforms.RandomResizedCrop(128),
+                transforms.RandomResizedCrop(img_size),
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomAdjustSharpness(1.5, p=0.3),
                 transforms.ToTensor(),
@@ -30,8 +30,8 @@ class JointDomainImageDataset(torch.utils.data.Dataset):
             ])
         else:
             self.transform = transforms.Compose([
-                # transforms.Resize(144, transforms.InterpolationMode.NEAREST),
-                transforms.RandomResizedCrop(128),
+                # transforms.Resize(load_size, transforms.InterpolationMode.NEAREST),
+                transforms.Resize((img_size, img_size)),
                 transforms.ToTensor(),
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
@@ -67,14 +67,13 @@ class JointDomainTripletDataset(torch.utils.data.Dataset):
             triplet = self.__split_triplet(Image.open(f"{domain_Y_folder}/{file_name}").convert("RGB"))
             self.Y_triplets.append(triplet)
 
-
         self.X_size = len(self.X_triplets)
         self.Y_size = len(self.Y_triplets)
 
     def __split_triplet(self, triplet):
-        t_0 = triplet[:, :self.img_size]
-        t_1 = triplet[:, self.img_size:self.img_size * 2]
-        t_2 = triplet[:, self.img_size * 2:]
+        t_0 = triplet.crop((0, 0, self.img_size, self.img_size))
+        t_1 = triplet.crop((self.img_size, 0, 2 * self.img_size, self.img_size))
+        t_2 = triplet.crop((2 * self.img_size, 0, 3 * self.img_size, self.img_size))
 
         return (t_0, t_1, t_2)
 
@@ -115,12 +114,12 @@ class JointDomainTripletDataset(torch.utils.data.Dataset):
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ]
 
-        y_localised_transform = transforms.Compose(x_localised_transform)
+        y_localised_transform = transforms.Compose(y_localised_transform)
 
-        y_0, y_1, y_2 = self.X_triplets[X_idx]
-        y_0 = x_localised_transform(x_0)
-        y_1 = x_localised_transform(x_1)
-        y_2 = x_localised_transform(x_2)
+        y_0, y_1, y_2 = self.Y_triplets[Y_idx]
+        y_0 = y_localised_transform(y_0)
+        y_1 = y_localised_transform(y_1)
+        y_2 = y_localised_transform(y_2)
 
         return ((x_0, x_1, x_2), (y_0, y_1, y_2))
     
